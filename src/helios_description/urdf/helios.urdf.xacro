@@ -1,0 +1,254 @@
+<?xml version="1.0"?>
+<!--
+  Helios 轮臂机器人底盘模型（仿真用，参数为合理拟合值，后续按厂家真值替换）。
+
+  已知（产品手册）：
+    - 底盘外形：长 0.68m x 宽 0.64m，全向移动，4 舵轮
+    - 双导航激光雷达：对角安装（前端 + 后端），360°，0.1~25m，约 5Hz
+    - 4 个 TOF 避障相机：底盘前/后/左/右（此处仅放占位 frame，待接入）
+  雷达 frame 名与真机 SDK 一致：
+    - right_front_laser_link（前，右前角）
+    - left_behind_laser_link（后，左后角）
+
+  ⚠️ 拟合占位，待厂家确认后替换：
+    - 雷达安装位姿(xyz/yaw)、底盘各部尺寸、TOF 外参
+  Gazebo 插件：
+    - libgazebo_ros_planar_move：全向底盘，订阅 /cmd_vel，发布 /odom + odom->base_footprint TF
+    - libgazebo_ros_ray_sensor：双 2D 激光，分别发布到 /sr_amr_control/front|rear/scan
+-->
+<robot name="helios" xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <!-- ===================== 底盘几何 ===================== -->
+  <xacro:property name="base_length" value="0.68"/>   <!-- x 长 -->
+  <xacro:property name="base_width"  value="0.64"/>   <!-- y 宽 -->
+  <xacro:property name="base_height" value="0.26"/>   <!-- 底盘体高（拟合） -->
+  <xacro:property name="base_mass"   value="60.0"/>
+  <xacro:property name="clearance"   value="0.04"/>   <!-- 底盘底面离地间隙 -->
+
+  <!-- 轮子（4 舵轮，拟合尺寸；planar_move 不依赖轮动力，仅作可视化） -->
+  <xacro:property name="wheel_radius"   value="0.08"/>
+  <xacro:property name="wheel_width"    value="0.05"/>
+  <xacro:property name="wheel_x_offset" value="0.24"/>
+  <xacro:property name="wheel_y_offset" value="0.27"/>
+
+  <!-- base_link 取底盘体几何中心：离地 = 间隙 + 体高/2 -->
+  <xacro:property name="base_z" value="${clearance + base_height/2.0}"/>
+
+  <!-- 雷达：对角角点安装，略内收于外形半尺寸 (0.34, 0.32) -->
+  <xacro:property name="lidar_z"        value="0.16"/>   <!-- 相对 base_link，约在底盘体顶面附近 -->
+  <xacro:property name="lidar_front_x"  value="0.30"/>
+  <xacro:property name="lidar_front_y"  value="-0.28"/>
+  <xacro:property name="lidar_rear_x"   value="-0.30"/>
+  <xacro:property name="lidar_rear_y"   value="0.28"/>
+
+  <!-- 雷达扫描参数（对齐真机：360°, 1°, 0.1~25m, 5Hz） -->
+  <xacro:property name="lidar_samples"  value="360"/>
+  <xacro:property name="lidar_min_ang"  value="-3.14159"/>
+  <xacro:property name="lidar_max_ang"  value="3.14159"/>
+  <xacro:property name="lidar_min_range" value="0.10"/>
+  <xacro:property name="lidar_max_range" value="25.0"/>
+  <xacro:property name="lidar_rate"     value="5.0"/>
+
+  <!-- TOF 避障相机占位位姿（相对 base_link，朝外；待厂家确认） -->
+  <xacro:property name="tof_z" value="0.0"/>            <!-- 低矮避障，约底盘中部偏下 -->
+
+  <!-- ===================== 惯量宏 ===================== -->
+  <xacro:macro name="box_inertia" params="m w h d">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia
+        ixx="${m*(h*h+d*d)/12.0}" ixy="0.0" ixz="0.0"
+        iyy="${m*(w*w+d*d)/12.0}" iyz="0.0"
+        izz="${m*(w*w+h*h)/12.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <xacro:macro name="cyl_inertia" params="m r h">
+    <inertial>
+      <mass value="${m}"/>
+      <inertia
+        ixx="${m*(3*r*r+h*h)/12.0}" ixy="0.0" ixz="0.0"
+        iyy="${m*(3*r*r+h*h)/12.0}" iyz="0.0"
+        izz="${m*r*r/2.0}"/>
+    </inertial>
+  </xacro:macro>
+
+  <!-- ===================== base ===================== -->
+  <link name="base_footprint"/>
+
+  <link name="base_link">
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_height}"/>
+      </geometry>
+      <material name="gray">
+        <color rgba="0.35 0.38 0.42 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <geometry>
+        <box size="${base_length} ${base_width} ${base_height}"/>
+      </geometry>
+    </collision>
+    <xacro:box_inertia m="${base_mass}" w="${base_length}" h="${base_width}" d="${base_height}"/>
+  </link>
+
+  <joint name="base_joint" type="fixed">
+    <parent link="base_footprint"/>
+    <child link="base_link"/>
+    <origin xyz="0 0 ${base_z}" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ===================== 轮子（可视化） ===================== -->
+  <xacro:macro name="wheel" params="name x y">
+    <link name="${name}">
+      <visual>
+        <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+        <material name="black">
+          <color rgba="0.1 0.1 0.1 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <origin xyz="0 0 0" rpy="1.5708 0 0"/>
+        <geometry>
+          <cylinder radius="${wheel_radius}" length="${wheel_width}"/>
+        </geometry>
+      </collision>
+      <xacro:cyl_inertia m="1.0" r="${wheel_radius}" h="${wheel_width}"/>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${name}"/>
+      <!-- 轮心离地 = wheel_radius，相对 base_link 的 z = wheel_radius - base_z -->
+      <origin xyz="${x} ${y} ${wheel_radius - base_z}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:wheel name="wheel_fl" x="${wheel_x_offset}"  y="${wheel_y_offset}"/>
+  <xacro:wheel name="wheel_fr" x="${wheel_x_offset}"  y="${-wheel_y_offset}"/>
+  <xacro:wheel name="wheel_rl" x="${-wheel_x_offset}" y="${wheel_y_offset}"/>
+  <xacro:wheel name="wheel_rr" x="${-wheel_x_offset}" y="${-wheel_y_offset}"/>
+
+  <!-- ===================== 雷达 link 宏 ===================== -->
+  <xacro:macro name="lidar_link" params="name x y z">
+    <link name="${name}">
+      <visual>
+        <geometry>
+          <cylinder radius="0.045" length="0.06"/>
+        </geometry>
+        <material name="red">
+          <color rgba="0.9 0.1 0.1 1.0"/>
+        </material>
+      </visual>
+      <collision>
+        <geometry>
+          <cylinder radius="0.045" length="0.06"/>
+        </geometry>
+      </collision>
+      <xacro:cyl_inertia m="0.2" r="0.045" h="0.06"/>
+    </link>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${name}"/>
+      <origin xyz="${x} ${y} ${z}" rpy="0 0 0"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:lidar_link name="right_front_laser_link"
+                    x="${lidar_front_x}" y="${lidar_front_y}" z="${lidar_z}"/>
+  <xacro:lidar_link name="left_behind_laser_link"
+                    x="${lidar_rear_x}" y="${lidar_rear_y}" z="${lidar_z}"/>
+
+  <!-- ===================== TOF 避障相机占位 frame ===================== -->
+  <!-- 仅 frame，暂不挂传感器插件；待确认 SDK 接口与外参后再启用 -->
+  <xacro:macro name="tof_frame" params="name x y yaw">
+    <link name="${name}"/>
+    <joint name="${name}_joint" type="fixed">
+      <parent link="base_link"/>
+      <child link="${name}"/>
+      <origin xyz="${x} ${y} ${tof_z}" rpy="0 0 ${yaw}"/>
+    </joint>
+  </xacro:macro>
+
+  <xacro:tof_frame name="tof_front_link" x="0.34"  y="0.0"  yaw="0.0"/>
+  <xacro:tof_frame name="tof_rear_link"  x="-0.34" y="0.0"  yaw="3.14159"/>
+  <xacro:tof_frame name="tof_left_link"  x="0.0"   y="0.32" yaw="1.5708"/>
+  <xacro:tof_frame name="tof_right_link" x="0.0"   y="-0.32" yaw="-1.5708"/>
+
+  <!-- ===================== Gazebo: 全向底盘 ===================== -->
+  <gazebo>
+    <plugin name="planar_move" filename="libgazebo_ros_planar_move.so">
+      <ros>
+        <namespace>/</namespace>
+        <remapping>cmd_vel:=cmd_vel</remapping>
+        <remapping>odom:=odom</remapping>
+      </ros>
+      <update_rate>50</update_rate>
+      <publish_rate>30</publish_rate>
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>true</publish_odom_tf>
+      <odometry_frame>odom</odometry_frame>
+      <robot_base_frame>base_footprint</robot_base_frame>
+      <covariance_x>0.0001</covariance_x>
+      <covariance_y>0.0001</covariance_y>
+      <covariance_yaw>0.001</covariance_yaw>
+    </plugin>
+  </gazebo>
+
+  <!-- ===================== Gazebo: 双雷达宏 ===================== -->
+  <xacro:macro name="lidar_gazebo" params="link topic">
+    <gazebo reference="${link}">
+      <material>Gazebo/Red</material>
+      <sensor name="${link}_sensor" type="ray">
+        <always_on>true</always_on>
+        <visualize>false</visualize>
+        <update_rate>${lidar_rate}</update_rate>
+        <ray>
+          <scan>
+            <horizontal>
+              <samples>${lidar_samples}</samples>
+              <resolution>1</resolution>
+              <min_angle>${lidar_min_ang}</min_angle>
+              <max_angle>${lidar_max_ang}</max_angle>
+            </horizontal>
+          </scan>
+          <range>
+            <min>${lidar_min_range}</min>
+            <max>${lidar_max_range}</max>
+            <resolution>0.01</resolution>
+          </range>
+          <noise>
+            <type>gaussian</type>
+            <mean>0.0</mean>
+            <stddev>0.01</stddev>
+          </noise>
+        </ray>
+        <plugin name="${link}_plugin" filename="libgazebo_ros_ray_sensor.so">
+          <ros>
+            <remapping>~/out:=${topic}</remapping>
+          </ros>
+          <output_type>sensor_msgs/LaserScan</output_type>
+          <frame_name>${link}</frame_name>
+        </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <xacro:lidar_gazebo link="right_front_laser_link" topic="/sr_amr_control/front/scan"/>
+  <xacro:lidar_gazebo link="left_behind_laser_link" topic="/sr_amr_control/rear/scan"/>
+
+  <gazebo reference="base_link">
+    <material>Gazebo/Gray</material>
+  </gazebo>
+
+  <gazebo reference="wheel_fl"><material>Gazebo/Black</material></gazebo>
+  <gazebo reference="wheel_fr"><material>Gazebo/Black</material></gazebo>
+  <gazebo reference="wheel_rl"><material>Gazebo/Black</material></gazebo>
+  <gazebo reference="wheel_rr"><material>Gazebo/Black</material></gazebo>
+
+</robot>

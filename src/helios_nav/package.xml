@@ -1,0 +1,33 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>helios_nav</name>
+  <version>0.1.0</version>
+  <description>
+    Helios 轮臂机器人底盘 2D 建图与导航包。
+    技术栈：slam_toolbox + map_server + amcl + nav2。
+    负责对接底盘 SDK（sr_amr_control）的雷达与速度接口，并运行开源导航算法栈。
+  </description>
+  <maintainer email="dev@example.com">helios dev</maintainer>
+  <license>Apache-2.0</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>tf2_geometry_msgs</exec_depend>
+  <exec_depend>sr_amr_interfaces</exec_depend>
+
+  <!-- 导航栈运行时依赖，部署机器需 apt 安装对应 ros-humble-* 包 -->
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend>
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>nav2_amcl</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

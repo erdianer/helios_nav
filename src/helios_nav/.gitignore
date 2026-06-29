@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# ROS2 colcon（若在包目录内编译）
+install/
+log/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 地图产物（体积大，按需单独管理）
+maps/*.pgm
+maps/*.yaml
+!maps/.gitkeep

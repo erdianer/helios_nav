@@ -1,0 +1,20 @@
+# colcon / ROS2 workspace
+build/
+install/
+log/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+
+# 本地地图（体积大，不上传；保留 .gitkeep）
+src/helios_nav/maps/*.pgm
+src/helios_nav/maps/*.yaml
+!src/helios_nav/maps/.gitkeep

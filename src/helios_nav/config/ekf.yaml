@@ -1,0 +1,36 @@
+# robot_localization EKF 配置（可选，后续接入 IMU 时启用）
+# 当前阶段：若底盘直接提供可用 /odom 和 odom->base_link TF，可不启用本节点。
+# 启用条件：拿到 IMU（sensor_msgs/Imu）后，用本 EKF 融合轮速 odom + IMU，
+#           输出 /odometry/filtered 和 odom->base_link TF。
+ekf_filter_node:
+  ros__parameters:
+    frequency: 20.0
+    two_d_mode: true              # 2D 导航
+    publish_tf: true
+    map_frame: map
+    odom_frame: odom
+    base_link_frame: base_link
+    world_frame: odom            # 连续里程计融合，world=odom
+
+    # ---- 轮速里程计输入 ----
+    odom0: /odom                  # 改成底盘实际 odom 话题
+    odom0_config: [false, false, false,
+                   false, false, false,
+                   true,  true,  false,
+                   false, false, true,
+                   false, false, false]
+    odom0_differential: false
+    odom0_relative: false
+    odom0_queue_size: 10
+
+    # ---- IMU 输入（拿到后填话题）----
+    imu0: /imu                    # 改成底盘实际 IMU 话题
+    imu0_config: [false, false, false,
+                  false, false, true,
+                  false, false, false,
+                  false, false, true,
+                  true,  true,  false]
+    imu0_differential: false
+    imu0_relative: true
+    imu0_queue_size: 10
+    imu0_remove_gravitational_acceleration: true
